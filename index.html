@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alaska Land Finder</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏔️</text></svg>">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0f1a24; --panel: #16242f; --panel2: #1d2f3d; --line: #2a4254;
+    --text: #e8f0f6; --muted: #8fa9bc; --accent: #4fc3f7; --green: #6fdc8c;
+    --amber: #ffc76b; --red: #ff8a7a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: baseline; }
+  header h1 { font-size: 20px; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  .stats { color: var(--muted); font-size: 13px; }
+  .stats b { color: var(--text); }
+  .layout { display: grid; grid-template-columns: 290px 1fr; min-height: calc(100vh - 55px); }
+  aside { border-right: 1px solid var(--line); padding: 16px; background: var(--panel); }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 18px 0 8px; }
+  aside h2:first-child { margin-top: 0; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--text); font-size: 14px;
+  }
+  .row2 { display: flex; gap: 8px; }
+  label.check { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; font-size: 14px; }
+  label.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .links a { display: block; color: var(--accent); font-size: 13px; text-decoration: none; padding: 3px 0; }
+  .links a:hover { text-decoration: underline; }
+  .note { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-top: 10px; background: var(--panel2); }
+  main { display: flex; flex-direction: column; }
+  #map { height: 44vh; min-height: 300px; border-bottom: 1px solid var(--line); background: #0a141c; }
+  .toolbar { display: flex; gap: 10px; align-items: center; padding: 10px 16px; flex-wrap: wrap; }
+  .toolbar .count { font-weight: 600; }
+  .toolbar select { width: auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 12px; padding: 0 16px 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px; transition: border-color .15s; }
+  .card:hover { border-color: var(--accent); }
+  .price-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .price { font-size: 19px; font-weight: 700; }
+  .ppa { font-size: 12px; color: var(--muted); }
+  .acres { color: var(--green); font-weight: 600; font-size: 14px; }
+  .loc { font-size: 14px; }
+  .loc .muted { color: var(--muted); font-size: 13px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+  .tag.water { color: var(--accent); border-color: var(--accent); }
+  .tag.house { color: var(--amber); border-color: var(--amber); }
+  .tag.pending { color: var(--red); border-color: var(--red); }
+  .tag.state-tag { color: #0f1a24; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+  .card.state { border-color: #2e6d8c; }
+  .tag.mtn { color: #cfd8ff; border-color: #7986cb; }
+  .tag.gold { color: #ffd97a; border-color: #c9a03d; }
+  .card .actions { display: flex; gap: 12px; margin-top: 6px; }
+  .card .actions a { color: var(--accent); font-size: 13px; text-decoration: none; }
+  .card .actions a:hover { text-decoration: underline; }
+  button.zoom { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  button.zoom:hover { border-color: var(--accent); }
+  .empty { padding: 40px; color: var(--muted); text-align: center; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); }
+  .leaflet-popup-content a { color: var(--accent); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } aside { border-right: none; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏔️ Alaska <span>Land Finder</span></h1>
+  <div class="stats" id="headStats"></div>
+</header>
+
+<div class="layout">
+  <aside>
+    <h2>Search</h2>
+    <input type="text" id="q" placeholder="City, address, keyword…">
+
+    <h2>Borough / Area</h2>
+    <select id="borough"><option value="">All boroughs</option></select>
+
+    <h2>Price</h2>
+    <div class="row2">
+      <input type="number" id="pmin" placeholder="Min $" min="0" step="5000">
+      <input type="number" id="pmax" placeholder="Max $" min="0" step="5000">
+    </div>
+
+    <h2>Acreage</h2>
+    <div class="row2">
+      <input type="number" id="amin" placeholder="Min acres" min="0" step="1">
+      <input type="number" id="amax" placeholder="Max acres" min="0" step="1">
+    </div>
+
+    <h2>Source</h2>
+    <label class="check"><input type="checkbox" id="srcState" checked> State of Alaska auctions</label>
+    <label class="check"><input type="checkbox" id="srcPrivate" checked> Private listings (LandWatch)</label>
+    <label class="check"><input type="checkbox" id="anyoneOnly"> Open to non-residents only</label>
+
+    <h2>Options</h2>
+    <label class="check"><input type="checkbox" id="landOnly" checked> Vacant land only (no house)</label>
+    <label class="check"><input type="checkbox" id="waterOnly"> Waterfront only</label>
+    <label class="check"><input type="checkbox" id="mtnOnly"> ⛰️ Mountain land</label>
+    <label class="check"><input type="checkbox" id="goldOnly"> ⛏️ Gold country</label>
+    <label class="check"><input type="checkbox" id="hidePending" checked> Hide pending sales</label>
+    <div class="hint" id="terrainHint">Mountain = 390+ ft of relief within ~1 mile, or 3,000+ ft elevation (ASTER terrain data). Gold = within ~6 mi of a known gold occurrence in the USGS Alaska Resource Data File — placer sites noted on cards. Owning land ≠ owning mineral rights (the state keeps them on state-sold parcels) — check before you dig.</div>
+
+    <h2>More land sources</h2>
+    <div class="links">
+      <a href="https://dnr.alaska.gov/mlw/landsales/" target="_blank">Alaska DNR State Land Sales ↗</a>
+      <a href="https://dnr.alaska.gov/mlw/landsales/otc/" target="_blank">DNR Over-the-Counter parcels ↗</a>
+      <a href="https://www.landwatch.com/alaska-land-for-sale" target="_blank">LandWatch — all 1,900+ listings ↗</a>
+      <a href="https://www.landsearch.com/properties/alaska" target="_blank">LandSearch Alaska ↗</a>
+    </div>
+    <div class="note">
+      <b>Tip:</b> The State of Alaska sells land directly — sealed-bid auctions plus first-come
+      "over-the-counter" parcels at fixed prices, often cheaper than private listings. The current state
+      auction parcels are included here (most require Alaska residency; some are open to anyone —
+      use the filter above). The OTC list is empty right now; unsold auction parcels typically move
+      there after the auction closes.
+    </div>
+    <div class="note" id="metaNote"></div>
+  </aside>
+
+  <main>
+    <div id="map"></div>
+    <div class="toolbar">
+      <span class="count" id="count"></span>
+      <select id="sort">
+        <option value="ppa">Sort: $/acre (low → high)</option>
+        <option value="price">Price (low → high)</option>
+        <option value="priceHigh">Price (high → low)</option>
+        <option value="acres">Acres (large → small)</option>
+        <option value="acresSmall">Acres (small → large)</option>
+      </select>
+      <button class="zoom" id="zoomBtn">Zoom map to results</button>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="empty" id="empty" style="display:none">No parcels match — loosen the filters.</div>
+  </main>
+</div>
+
+<script src="data-1.js"></script>
+<script src="data-2.js"></script>
+<script src="data-3.js"></script>
+<script src="data-4.js"></script>
+<script src="data-dnr.js"></script>
+<script src="data-terrain.js"></script>
+<script>
+const F = { price:0, acres:1, addr:2, city:3, borough:4, zip:5, lat:6, lon:7, url:8, types:9, beds:10, house:11, status:12 };
+const lwRows = window.AK_DATA.map((r, i) => ({
+  i, state: false, price: r[F.price], acres: r[F.acres], addr: r[F.addr], city: r[F.city],
+  borough: r[F.borough].replace(' Borough','').replace(' Census Area',''), zip: r[F.zip],
+  lat: r[F.lat], lon: r[F.lon], url: 'https://www.landwatch.com' + r[F.url],
+  types: r[F.types], house: r[F.house] === 1, pending: r[F.status] === 2,
+  residentOnly: false,
+  water: /waterfront|lakefront|riverfront|oceanfront/i.test(r[F.types]),
+  ppa: r[F.acres] > 0 ? r[F.price] / r[F.acres] : Infinity,
+}));
+const dnrRows = (window.DNR_DATA || []).map((d, i) => ({
+  i: 100000 + i, state: true, price: d.price, acres: d.acres,
+  addr: d.subd + (d.lotdesc ? ' — ' + d.lotdesc : ''),
+  city: 'Parcel ' + d.id, borough: 'State: ' + d.region, zip: '',
+  lat: d.lat, lon: d.lon, approx: !!d.approx,
+  url: 'https://dnr.alaska.gov/mlw/landsales/parcels/details/' + d.id,
+  bidUrl: 'https://dnr.alaska.gov/mlw/landsales/auction/bid/' + d.id + '/',
+  brochure: d.brochure,
+  types: (d.program === 'AUC-AG' ? 'Agricultural Auction' : 'Residential Auction') +
+         (d.road ? ', Road Access' : ', No Road Access'),
+  house: false, pending: false, residentOnly: d.residentOnly, water: d.water,
+  auction: d.auction, adl: d.adl,
+  ppa: d.acres > 0 ? d.price / d.acres : Infinity,
+}));
+const rows = lwRows.concat(dnrRows);
+
+// Attach derived terrain + gold-proximity data
+const TERRAIN = window.TERRAIN || { lw: [], dnr: {} };
+const MTN_RELIEF = 120, MTN_ELEV = 900, GOLD_KM = 10;   // meters, meters, km
+rows.forEach(r => {
+  const t = r.state ? TERRAIN.dnr[r.city.replace('Parcel ', '')] : TERRAIN.lw[r.i];
+  if (!t) { r.mountain = false; r.goldc = false; return; }
+  r.elev = t[0]; r.relief = t[1]; r.goldKm = t[2]; r.goldPlacer = !!t[3]; r.goldSite = t[4] || '';
+  r.mountain = t[1] >= MTN_RELIEF || t[0] >= MTN_ELEV;
+  r.goldc = t[2] !== null && t[2] <= GOLD_KM;
+});
+
+const $ = id => document.getElementById(id);
+const fmt$ = n => '$' + Math.round(n).toLocaleString('en-US');
+const fmtAc = n => (n >= 10 ? Math.round(n) : n) + ' ac';
+
+// Borough / region dropdown (private boroughs + DNR state regions)
+{
+  const gState = document.createElement('optgroup'); gState.label = 'State auction regions';
+  const gBor = document.createElement('optgroup'); gBor.label = 'Boroughs (private listings)';
+  [...new Set(rows.map(r => r.borough))].sort().forEach(b => {
+    const o = document.createElement('option'); o.value = b;
+    o.textContent = b.replace('State: ', '');
+    (b.startsWith('State: ') ? gState : gBor).appendChild(o);
+  });
+  $('borough').appendChild(gState); $('borough').appendChild(gBor);
+}
+
+// Map
+const map = L.map('map', { worldCopyJump: true }).setView([62.5, -152], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors', maxZoom: 18,
+}).addTo(map);
+const markerLayer = L.layerGroup().addTo(map);
+
+function ppaColor(p) {
+  if (p < 5000) return '#6fdc8c';
+  if (p < 20000) return '#ffc76b';
+  return '#ff8a7a';
+}
+
+function filtered() {
+  const q = $('q').value.trim().toLowerCase();
+  const b = $('borough').value;
+  const pmin = +$('pmin').value || 0, pmax = +$('pmax').value || Infinity;
+  const amin = +$('amin').value || 0, amax = +$('amax').value || Infinity;
+  let out = rows.filter(r =>
+    r.price >= pmin && r.price <= pmax &&
+    r.acres >= amin && r.acres <= amax &&
+    (!b || r.borough === b) &&
+    (r.state ? $('srcState').checked : $('srcPrivate').checked) &&
+    (!$('anyoneOnly').checked || !r.residentOnly) &&
+    (!$('landOnly').checked || !r.house) &&
+    (!$('waterOnly').checked || r.water) &&
+    (!$('mtnOnly').checked || r.mountain) &&
+    (!$('goldOnly').checked || r.goldc) &&
+    (!$('hidePending').checked || !r.pending) &&
+    (!q || (r.addr + ' ' + r.city + ' ' + r.borough + ' ' + r.zip + ' ' + r.types).toLowerCase().includes(q))
+  );
+  const s = $('sort').value;
+  out.sort((x, y) =>
+    s === 'price' ? x.price - y.price :
+    s === 'priceHigh' ? y.price - x.price :
+    s === 'acres' ? y.acres - x.acres :
+    s === 'acresSmall' ? x.acres - y.acres :
+    x.ppa - y.ppa);
+  return out;
+}
+
+let current = [];
+function render() {
+  current = filtered();
+  $('count').textContent = current.length + ' parcel' + (current.length === 1 ? '' : 's');
+  $('empty').style.display = current.length ? 'none' : 'block';
+
+  // Cards
+  $('cards').innerHTML = current.map(r => `
+    <div class="card${r.state ? ' state' : ''}" data-i="${r.i}">
+      <div class="price-row">
+        <span class="price">${r.state ? 'Min bid ' : ''}${fmt$(r.price)}</span>
+        <span class="acres">${fmtAc(r.acres)}</span>
+      </div>
+      <div class="ppa">${isFinite(r.ppa) ? fmt$(r.ppa) + ' / acre' : ''}</div>
+      <div class="loc">${r.addr ? r.addr + '<br>' : ''}<span class="muted">${r.city}${r.zip ? ', AK ' + r.zip : ''} · ${r.borough.replace('State: ','')}${r.state ? ' region' : ''}</span></div>
+      <div class="tags">
+        ${r.state ? '<span class="tag state-tag">State Auction #' + r.auction + '</span>' : ''}
+        ${r.state && r.residentOnly ? '<span class="tag house">AK residents only</span>' : ''}
+        ${r.pending ? '<span class="tag pending">Pending</span>' : ''}
+        ${r.mountain ? '<span class="tag mtn">⛰️ ' + Math.round(r.elev * 3.281).toLocaleString() + ' ft' + (r.relief >= MTN_RELIEF ? ' · ' + Math.round(r.relief * 3.281) + ' ft relief' : '') + '</span>' : ''}
+        ${r.goldc ? '<span class="tag gold" title="' + (r.goldSite || '') + '">⛏️ ' + (r.goldPlacer ? 'Placer gold' : 'Gold') + ' ' + r.goldKm + ' km</span>' : ''}
+        ${r.water ? '<span class="tag water">Waterfront</span>' : ''}
+        ${r.house ? '<span class="tag house">Has structure</span>' : ''}
+        ${r.types.split(', ').filter(t => t && !/waterfront|house/i.test(t)).slice(0, 3).map(t => '<span class="tag">' + t.replace(' Property','') + '</span>').join('')}
+      </div>
+      <div class="actions">
+        <a href="${r.url}" target="_blank">${r.state ? 'Parcel details' : 'View listing'} ↗</a>
+        ${r.state && r.brochure ? `<a href="${r.brochure}" target="_blank">Brochure ↗</a>` : ''}
+        ${r.lat ? `<a href="https://www.google.com/maps/@${r.lat},${r.lon},14z/data=!3m1!1e3" target="_blank">Satellite ↗</a>` : ''}
+      </div>
+    </div>`).join('');
+
+  // Markers
+  markerLayer.clearLayers();
+  current.forEach(r => {
+    if (!r.lat) return;
+    L.circleMarker([r.lat, r.lon], {
+      radius: r.state ? 7 : 6, weight: r.state ? 2.5 : 1.5,
+      color: r.state ? '#4fc3f7' : '#0f1a24',
+      fillColor: ppaColor(r.ppa), fillOpacity: 0.9,
+    }).bindPopup(
+      `${r.state ? '<b>State Auction #' + r.auction + '</b><br>' : ''}` +
+      `<b>${r.state ? 'Min bid ' : ''}${fmt$(r.price)}</b> · ${fmtAc(r.acres)}${r.approx ? ' · <i>approx. location</i>' : ''}<br>` +
+      `${r.addr ? r.addr + '<br>' : ''}${r.city} · ${r.borough.replace('State: ','')}<br>` +
+      `<a href="${r.url}" target="_blank">${r.state ? 'Parcel details' : 'View listing'} ↗</a>`
+    ).addTo(markerLayer);
+  });
+
+  const total = current.reduce((s, r) => s + r.acres, 0);
+  const med = current.length ? current.map(r => r.ppa).filter(isFinite).sort((a, b) => a - b)[Math.floor(current.length / 2)] : 0;
+  $('headStats').innerHTML = `<b>${current.length}</b> parcels shown · <b>${Math.round(total).toLocaleString()}</b> total acres` +
+    (med ? ` · median <b>${fmt$(med)}</b>/acre` : '');
+}
+
+$('zoomBtn').onclick = () => {
+  const pts = current.filter(r => r.lat);
+  if (!pts.length) return;
+  map.fitBounds(pts.map(r => [r.lat, r.lon]), { padding: [30, 30], maxZoom: 11 });
+};
+
+['q','borough','pmin','pmax','amin','amax','srcState','srcPrivate','anyoneOnly','landOnly','waterOnly','mtnOnly','goldOnly','hidePending','sort']
+  .forEach(id => $(id).addEventListener('input', render));
+
+$('metaNote').innerHTML = `Data (scraped <b>${window.AK_META.scrapedAt}</b>): <b>${lwRows.length}</b> private listings from ${window.AK_META.source} ` +
+  `(of ~${window.AK_META.totalOnSource.toLocaleString()} there) + <b>${dnrRows.length}</b> state parcels from ${window.DNR_META ? window.DNR_META.source : 'DNR'}. ` +
+  `State parcels are sealed-bid auction offerings — blue-ringed dots on the map. Ask Claude to refresh anytime.`;
+
+render();
+</script>
+</body>
+</html>
